@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from typing import Dict, Union, List
+from typing import Dict, List
 import sys
 import os
 import numpy as np
@@ -153,9 +153,10 @@ config.if_gpu = config.if_gpu and torch.cuda.is_available()
 
 logger.info(config)  # print training setting
 
-ner_model = BiRecurrentConvCRF4NestedNER(config.token_embed, config.voc_iv_size, config.voc_ooev_size, config.char_embed,
-                                         config.char_size, config.num_filters, config.kernel_size, config.label_size,
-                                         embedd_word, hidden_size=config.hidden_size, layers=config.layers,
+ner_model = BiRecurrentConvCRF4NestedNER(config.token_embed, config.voc_iv_size, config.voc_ooev_size,
+                                         config.char_embed, config.char_size, config.num_filters, config.kernel_size,
+                                         config.label_size, embedd_word,
+                                         hidden_size=config.hidden_size, layers=config.layers,
                                          word_dropout=config.word_dropout, char_dropout=config.char_dropout,
                                          cnn_dropout=config.cnn_dropout, lstm_dropout=config.lstm_dropout)
 if config.if_gpu:
