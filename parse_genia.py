@@ -81,6 +81,9 @@ SEM_ATTRIBUTE = ' sem="'
 
 def parse_line(line: str) -> Tuple[str, str]:
 
+    if line.find('HMG-I(Y)</cons>') > -1:
+        line = line.replace('HMG-I(Y)</cons>', '<w c="NN">HMG-I(Y)</w></cons>')
+
     # words
     word_tags_begin = []
     words_begin = []
@@ -101,18 +104,10 @@ def parse_line(line: str) -> Tuple[str, str]:
             break
         words_end.append(index)
 
-    if line.find('HMG-I(Y)</cons>') > 0:
-        index = line.find('HMG-I(Y)</cons>')
-        words_begin.append(index)
-        index = line.find('</cons>', index)
-        words_end.append(index)
-        words_begin.sort()
-        words_end.sort()
-
     assert (len(words_begin) == len(words_end))
     words = list()
     for bi, ei in zip(words_begin, words_end):
-        words.append(line[bi:ei])
+        words.append(line[bi:ei].replace(' ', '\xa0'))
 
     # labels
     mention_tags_begin = []

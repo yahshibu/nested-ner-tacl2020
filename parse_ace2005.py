@@ -48,26 +48,103 @@ class Token:
         self.end: int = end
 
 
+class Sentence:
+
+    def __init__(self, text: str, begin: int, end: int) -> None:
+        self.text: str = text
+        self.begin: int = begin
+        self.end: int = end
+        self.tokens: List[Token] = None
+
+
 class Tokenizer:
 
     def __init__(self) -> None:
         os.environ['CORENLP_HOME'] = '{}/stanford-corenlp-full-2018-10-05'.format(os.environ['HOME'])
-        self.client: CoreNLPClient = CoreNLPClient(annotators=['tokenize', 'ssplit'])
-        self.client.ensure_alive()
+        self.splitter_client = CoreNLPClient(annotators=['ssplit'],
+                                             properties={'tokenize.options': 'ptb3Escaping=false,invertible=true'})
+        self.splitter_client.ensure_alive()
+        self.tokenizer_client = CoreNLPClient(annotators=['tokenize'],
+                                              properties={'tokenize.options': 'normalizeParentheses=false,'
+                                                                              'normalizeOtherBrackets=false,'
+                                                                              'latexQuotes=false,'
+                                                                              'unicodeQuotes=false,'
+                                                                              'invertible=true'})
+        self.tokenizer_client.ensure_alive()
 
-    def tokenize(self, doc: str) -> List[List[Token]]:
-        corenlp_annotation = self.client.annotate(doc)
+    def tokenize(self, doc: str) -> List[Sentence]:
+        splitter_annotation = self.splitter_client.annotate(doc)
         sentences = []
-        for sentence in corenlp_annotation.sentence:
+        for sentence in splitter_annotation.sentence:
+            text = doc[sentence.characterOffsetBegin:sentence.characterOffsetEnd]
+            begin = sentence.characterOffsetBegin
+            end = sentence.characterOffsetEnd
+            sentences.append(Sentence(text, begin, end))
+        sentences = self.fix_split(sentences)
+        for sentence in sentences:
+            tokenizer_annotation = self.tokenizer_client.annotate(sentence.text)
             tokens = []
-            for corenlp_token in sentence.token:
-                assert (corenlp_token.word == corenlp_token.value)
-                word = corenlp_token.word
-                begin = corenlp_token.beginChar
-                end = corenlp_token.endChar
+            for token in tokenizer_annotation.sentencelessToken:
+                word = token.originalText
+                begin = sentence.begin + token.beginChar
+                end = sentence.begin + token.endChar
                 tokens.append(Token(word, begin, end))
-            sentences.append(tokens)
+            tokens = self.fix_tokens(tokens)
+            sentence.tokens = tokens
         return sentences
+
+    @staticmethod
+    def fix_split(sentences: List[Sentence]) -> List[Sentence]:
+        result = []
+        i = 0
+        while i < len(sentences):
+            sentence = sentences[i]
+            while sentence is not None:
+                if i < len(sentences) - 1:
+                    next_sentence = sentences[i + 1]
+                else:
+                    next_sentence = None
+                if '\n\n' in sentence.text:
+                    index = sentence.text.index('\n\n')
+                    new_sentence = Sentence(sentence.text[:index], sentence.begin, sentence.begin + index)
+                    result.append(new_sentence)
+                    index += re.search(r'[\n\t ]+', sentence.text[index:]).end()
+                    sentence.text = sentence.text[index:]
+                    sentence.begin += index
+                elif next_sentence is not None and next_sentence.begin == sentence.end:
+                    sentence.text += next_sentence.text
+                    sentence.end = next_sentence.end
+                    i += 1
+                else:
+                    result.append(sentence)
+                    sentence = None
+            i += 1
+        return result
+
+    @staticmethod
+    def fix_tokens(tokens: List[Token]) -> List[Token]:
+        result = []
+        for token in tokens:
+            while re.search(r'([^-]+-[A-Z].*|[^-]*[A-Z][^-]*-[^-]+-[^-]*)', token.word) is not None:
+                index = token.word.index('-')
+                new_token = Token(token.word[:index], token.begin, token.begin + index)
+                result.append(new_token)
+                index += 1
+                token.word = token.word[index:]
+                token.begin += index
+            result.append(token)
+        tokens = result
+        result = []
+        for token in tokens:
+            while ' ' in token.word:
+                index = token.word.index(' ')
+                new_token = Token(token.word[:index], token.begin, token.begin + index)
+                result.append(new_token)
+                index += 1
+                token.word = token.word[index:]
+                token.begin += index
+            result.append(token)
+        return result
 
 
 class Label:
@@ -188,8 +265,8 @@ def parse_document(basename: str, tokenizer: Tokenizer) -> List[str]:
         doc_tmp = re.sub(r'<[^>]+>', '', doc_org)
         doc_tmp = re.sub(r'(\S+)\n(\S[^:])', r'\1 \2', doc_tmp)
 
-        bi = doc_org.index(TEXT_BEGIN_TAG)
-        ei = doc_org.index(TEXT_END_TAG) + len(TEXT_END_TAG)
+        bi = doc_org.index(TEXT_BEGIN_TAG) + len(TEXT_BEGIN_TAG)
+        ei = doc_org.index(TEXT_END_TAG)
         doc_modified = re.sub(r'<[^>]+>', '', doc_org[bi:ei])
         doc_modified = re.sub(r'(\S+)\n(\S[^:])', r'\1 \2', doc_modified)
 
@@ -222,18 +299,8 @@ def parse_document(basename: str, tokenizer: Tokenizer) -> List[str]:
     for sentence in sentences:
 
         tokens = list()
-        for token in sentence:
-            word = token.word
-            begin = token.begin
-            end = token.end
-            while re.search(r'([^-]+-[A-Z].*|[^-]*[A-Z][^-]*-[^-]+-[^-]*)', word) is not None:
-                index = word.index('-')
-                new_token = Token(word[:index], begin, begin + index)
-                tokens.append(new_token)
-                word = word[index+1:]
-                begin += index + 1
-            new_token = Token(word, begin, end)
-            tokens.append(new_token)
+        for token in sentence.tokens:
+            tokens.append(token)
 
         words = list()
         for token in tokens:
