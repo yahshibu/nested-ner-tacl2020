@@ -3,8 +3,8 @@ __maintainer__ = 'takashi'
 
 from typing import List, Union
 import torch
+from torch import Tensor
 import torch.nn as nn
-from torch.tensor import Tensor
 
 from module.crf import ChainCRF4NestedNER
 from module.dropout import WordDropout, CharDropout

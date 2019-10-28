@@ -1,8 +1,8 @@
 import torch
+from torch import Tensor
 import torch.nn as nn
 from torch.nn import functional as f
 from torch.nn.parameter import Parameter
-from torch.tensor import Tensor
 
 
 class VarConv1d(nn.Module):
@@ -111,9 +111,9 @@ class VarConv1d(nn.Module):
         self.padding: int = padding
         self.dilation: int = dilation
         self.groups: int = groups
-        self.weight: Tensor = Parameter(Tensor(out_channels, in_channels // groups, kernel_size))
+        self.weight: Tensor = Parameter(Tensor(out_channels, in_channels // groups, kernel_size), True)
         if bias:
-            self.bias: Tensor = Parameter(Tensor(out_channels))
+            self.bias: Tensor = Parameter(Tensor(out_channels), True)
         else:
             self.register_parameter('bias', None)
 
@@ -155,7 +155,7 @@ class VarConv1d(nn.Module):
             return output.view((input_size[0], input_size[1], output_size[1], output_size[2]))
 
         output = []
-        for i in range(input.size(dim=0)):
+        for i in range(input.size(0)):
             weight = self.dropout(self.weight)
             output.append(f.conv1d(input[i], weight, self.bias, self.stride, self.padding, self.dilation, self.groups)
                           .unsqueeze(0))

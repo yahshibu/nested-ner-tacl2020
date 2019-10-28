@@ -1,4 +1,4 @@
-from typing import List, Dict, Tuple
+from typing import Dict, Optional, List, Tuple
 import numpy as np
 import pickle
 import pdb
@@ -20,16 +20,16 @@ class Reader:
     def __init__(self) -> None:
 
         self.vocab2id: Dict[str, int] = {}
-        self.lowercase: bool = None
+        self.lowercase: Optional[bool] = None
 
-        self.word_iv_alphabet: Alphabet = None
-        self.word_ooev_alphabet: Alphabet = None
-        self.char_alphabet: Alphabet = None
-        self.label_alphabet: Alphabet = None
+        self.word_iv_alphabet: Optional[Alphabet] = None
+        self.word_ooev_alphabet: Optional[Alphabet] = None
+        self.char_alphabet: Optional[Alphabet] = None
+        self.label_alphabet: Optional[Alphabet] = None
 
-        self.train: List[SentInst] = None
-        self.dev: List[SentInst] = None
-        self.test: List[SentInst] = None
+        self.train: Optional[List[SentInst]] = None
+        self.dev: Optional[List[SentInst]] = None
+        self.test: Optional[List[SentInst]] = None
 
     def read_and_gen_vectors_glove(self, embed_path: str) -> None:
         token_embed = None

@@ -6,9 +6,8 @@ import numpy as np
 import pickle
 from datetime import datetime
 from random import shuffle
-from torch.autograd import Variable
-from torch.tensor import Tensor
 import torch
+from torch import Tensor
 import torch.cuda
 import torch.nn
 import copy
@@ -50,10 +49,10 @@ def get_f1(model: BiRecurrentConvCRF4NestedNER, mode: str, file_path: str = None
             f = open(file_path, 'w')
 
         for token_iv_batch, token_ooev_batch, char_batch, label_batch, mask_batch in batch_zip:
-            token_iv_batch_var = Variable(torch.LongTensor(np.array(token_iv_batch)))
-            token_ooev_batch_var = Variable(torch.LongTensor(np.array(token_ooev_batch)))
-            char_batch_var = Variable(torch.LongTensor(np.array(char_batch)))
-            mask_batch_var = Variable(torch.ByteTensor(np.array(mask_batch, dtype=np.uint8)))
+            token_iv_batch_var = torch.LongTensor(np.array(token_iv_batch))
+            token_ooev_batch_var = torch.LongTensor(np.array(token_ooev_batch))
+            char_batch_var = torch.LongTensor(np.array(char_batch))
+            mask_batch_var = torch.ByteTensor(np.array(mask_batch, dtype=np.uint8))
             if config.if_gpu:
                 token_iv_batch_var = token_iv_batch_var.cuda()
                 token_ooev_batch_var = token_ooev_batch_var.cuda()
@@ -195,10 +194,10 @@ for e_ in range(1, config.epoch + 1):
     for token_iv_batch, token_ooev_batch, char_batch, label_batch, mask_batch in train_all_batches:
         batch_len = len(token_iv_batch)
 
-        token_iv_batch_var = Variable(torch.LongTensor(np.array(token_iv_batch)))
-        token_ooev_batch_var = Variable(torch.LongTensor(np.array(token_ooev_batch)))
-        char_batch_var = Variable(torch.LongTensor(np.array(char_batch)))
-        mask_batch_var = Variable(torch.ByteTensor(np.array(mask_batch, dtype=np.uint8)))
+        token_iv_batch_var = torch.LongTensor(np.array(token_iv_batch))
+        token_ooev_batch_var = torch.LongTensor(np.array(token_ooev_batch))
+        char_batch_var = torch.LongTensor(np.array(char_batch))
+        mask_batch_var = torch.ByteTensor(np.array(mask_batch, dtype=np.uint8))
         if config.if_gpu:
             token_iv_batch_var = token_iv_batch_var.cuda()
             token_ooev_batch_var = token_ooev_batch_var.cuda()

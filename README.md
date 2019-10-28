@@ -7,10 +7,10 @@ Some files are part of [NeuroNLP2](https://github.com/XuezheMax/NeuroNLP2).
 We tested this library with the following libraries:
 
 * Python (3.7)
-* [PyTorch](https://github.com/pytorch/pytorch) (1.0.1)
-* [Numpy](https://github.com/numpy/numpy) (1.16.2)
+* [PyTorch](https://github.com/pytorch/pytorch) (1.3.0)
+* [Numpy](https://github.com/numpy/numpy) (1.17.3)
 * [AdaBound](https://github.com/Luolc/AdaBound) (0.0.5)
-* [StanfordNLP](https://github.com/stanfordnlp/stanfordnlp) (0.1.2) for accessing the Java Stanford CoreNLP Server (3.9.2)
+* [StanfordNLP](https://github.com/stanfordnlp/stanfordnlp) (0.2.0) for accessing the Java Stanford CoreNLP Server (3.9.2)
 
 ## Running experiments
 

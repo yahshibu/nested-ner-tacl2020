@@ -1,4 +1,5 @@
 from __future__ import division
+from typing import Optional
 
 from training.utils import Optimizer
 
@@ -9,18 +10,18 @@ class Config:
 
         # for data loader
         self.data_set: str = "sample"
-        self.lowercase: bool = None  # TODO: to be deleted
+        self.lowercase: Optional[bool] = None  # TODO: to be deleted
         self.batch_size: int = 32
         self.if_shuffle: bool = True
 
         # override when loading data
-        self.voc_iv_size: int = None
-        self.voc_ooev_size: int = None
-        self.char_size: int = None
-        self.label_size: int = None
+        self.voc_iv_size: Optional[int] = None
+        self.voc_ooev_size: Optional[int] = None
+        self.char_size: Optional[int] = None
+        self.label_size: Optional[int] = None
 
         # embed size
-        self.token_embed: int = None
+        self.token_embed: Optional[int] = None
         self.char_embed: int = 25
         self.word_dropout: float = 0.05
         self.char_dropout: float = 0.00
