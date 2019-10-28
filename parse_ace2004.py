@@ -1,7 +1,8 @@
 #!/usr/bin/env python
-from typing import List, Dict
+from typing import List, Dict, Optional
 import os
 import re
+import glob
 from stanfordnlp.server import CoreNLPClient
 
 
@@ -54,26 +55,25 @@ class Sentence:
         self.text: str = text
         self.begin: int = begin
         self.end: int = end
-        self.tokens: List[Token] = None
+        self.tokens: Optional[List[Token]] = None
 
 
 class Tokenizer:
 
     def __init__(self) -> None:
         os.environ['CORENLP_HOME'] = '{}/stanford-corenlp-full-2018-10-05'.format(os.environ['HOME'])
-        self.splitter_client = CoreNLPClient(annotators=['ssplit'],
-                                             properties={'tokenize.options': 'ptb3Escaping=false,invertible=true'})
-        self.splitter_client.ensure_alive()
-        self.tokenizer_client = CoreNLPClient(annotators=['tokenize'],
-                                              properties={'tokenize.options': 'normalizeParentheses=false,'
-                                                                              'normalizeOtherBrackets=false,'
-                                                                              'latexQuotes=false,'
-                                                                              'unicodeQuotes=false,'
-                                                                              'invertible=true'})
-        self.tokenizer_client.ensure_alive()
+        self.client = CoreNLPClient()
+        self.client.ensure_alive()
+
+    def __del__(self) -> None:
+        for p in glob.glob('corenlp_server-*.props'):
+            if os.path.isfile(p):
+                os.remove(p)
 
     def tokenize(self, doc: str) -> List[Sentence]:
-        splitter_annotation = self.splitter_client.annotate(doc)
+        splitter_annotation \
+            = self.client.annotate(doc, annotators=['ssplit'],
+                                   properties={'tokenize.options': 'ptb3Escaping=false,invertible=true'})
         end = 0
         sentences = []
         for sentence in splitter_annotation.sentence:
@@ -84,7 +84,13 @@ class Tokenizer:
             sentences.append(Sentence(text, begin, end))
         sentences = self.fix_split(sentences)
         for sentence in sentences:
-            tokenizer_annotation = self.tokenizer_client.annotate(sentence.text)
+            tokenizer_annotation \
+                = self.client.annotate(sentence.text, annotators=['tokenize'],
+                                       properties={'tokenize.options': 'normalizeParentheses=false,'
+                                                                       'normalizeOtherBrackets=false,'
+                                                                       'latexQuotes=false,'
+                                                                       'unicodeQuotes=false,'
+                                                                       'invertible=true'})
             tokens = []
             for token in tokenizer_annotation.sentencelessToken:
                 word = token.originalText
@@ -150,11 +156,14 @@ class Tokenizer:
 class Label:
 
     def __init__(self) -> None:
-        self.start: int = None
-        self.end: int = None
-        self.tag: str = None
+        self.start: Optional[int] = None
+        self.end: Optional[int] = None
+        self.tag: Optional[str] = None
 
-    def __repr__(self) -> str:
+    def __eq__(self, other) -> bool:
+        return self.start == other.start and self.end == other.end and self.tag == other.tag
+
+    def __str__(self) -> str:
         return str(self.start) + ',' + str(self.end) + ' ' + self.tag
 
 
@@ -162,13 +171,14 @@ def calc_stat(words: List[str], labels: List[Label]) -> None:
     labels = sorted(labels, key=lambda x: (x.start, -x.end, x.tag))
     for tag, stat in TAG_SET.items():
         sequence_label = [0] * len(words)
-        for id, label in enumerate(labels):
+        prev_label = None
+        for label in labels:
 
             if label.tag != tag:
                 continue
             stat.total += 1
 
-            if id > 0 and label.__repr__() == labels[id - 1].__repr__():
+            if prev_label is not None and label == prev_label:
                 depth = sequence_label[label.start] - 1
                 stat.layer[depth] += 1
                 continue
@@ -188,6 +198,8 @@ def calc_stat(words: List[str], labels: List[Label]) -> None:
                 stat.layer[depth] += 1
             else:
                 stat.ignored += 1
+
+            prev_label = label
 
         stat.num_labels += sum(sequence_label) + len(words)
 
@@ -311,8 +323,10 @@ def parse_document(basename: str, tokenizer: Tokenizer) -> List[str]:
         for entity_annotation in entity_annotations:
             if entity_annotation.start < s_start:
                 continue
-            elif s_end < entity_annotation.end:
+            elif entity_annotation.start >= s_end:
                 break
+            elif entity_annotation.end > s_end:
+                continue
             label = Label()
             index = 0
             while index < len(tokens):
@@ -332,7 +346,7 @@ def parse_document(basename: str, tokenizer: Tokenizer) -> List[str]:
             assert (label.end is not None)
             label.tag = entity_annotation.type
             labels.append(label)
-        output_lines.append('|'.join([label.__repr__() for label in labels]) + '\n')
+        output_lines.append('|'.join([str(label) for label in labels]) + '\n')
 
         output_lines.append('\n')
 
@@ -362,8 +376,8 @@ def parse_ace_2004(tokenizer: Tokenizer) -> None:
                 output_lines.extend(output_lines_doc)
                 doc_count += 1
                 sent_count += len(output_lines_doc) // 3
-                for depth in range(0, len(output_lines_doc), 3):
-                    token_count += len(output_lines_doc[depth].split())
+                for idx in range(0, len(output_lines_doc), 3):
+                    token_count += len(output_lines_doc[idx].split(' '))
 
         with open(output_dir_path + output_file, 'w') as f:
             f.writelines(output_lines)
