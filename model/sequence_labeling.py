@@ -8,7 +8,6 @@ import torch.nn as nn
 
 from module.crf import ChainCRF4NestedNER
 from module.dropout import WordDropout, CharDropout
-from module.variational_cnn import VarConv1d
 from module.variational_rnn import VarMaskedFastLSTM
 
 
@@ -22,17 +21,16 @@ class NestedSequenceLabel:
 
 class BiRecurrentConvCRF4NestedNER(nn.Module):
     def __init__(self, token_embed: int, voc_iv_size: int, voc_ooev_size: int, char_embed: int, char_size: int,
-                 num_filters: int, kernel_size: int, label_size: int, embedd_word: Tensor, hidden_size: int = 200,
-                 layers: int = 2, word_dropout: float = 0.20, char_dropout: float = 0.00,
-                 cnn_dropout: float = 0.20, lstm_dropout: float = 0.20) -> None:
+                 num_filters: int, kernel_size: int, label_size: int, embedd_word: Tensor, hidden_size: int = 256,
+                 layers: int = 2, word_dropout: float = 0.05, char_dropout: float = 0.00, lstm_dropout: float = 0.20) \
+            -> None:
         super(BiRecurrentConvCRF4NestedNER, self).__init__()
 
         self.word_embedd_iv: nn.Embedding = nn.Embedding(voc_iv_size, token_embed, _weight=embedd_word)
         self.word_embedd_iv.weight.requires_grad = False
         self.word_embedd_ooev: nn.Embedding = nn.Embedding(voc_ooev_size, token_embed)
         self.char_embedd: nn.Embedding = nn.Embedding(char_size, char_embed)
-        self.conv1d: VarConv1d = VarConv1d(char_embed, num_filters, kernel_size,
-                                           padding=kernel_size - 1, dropout=cnn_dropout)
+        self.conv1d: nn.Conv1d = nn.Conv1d(char_embed, num_filters, kernel_size, padding=kernel_size - 1)
         # dropout word
         self.dropout_word: WordDropout = WordDropout(p=word_dropout)
         self.dropout_char: CharDropout = CharDropout(p=char_dropout)
@@ -87,13 +85,15 @@ class BiRecurrentConvCRF4NestedNER(nn.Module):
         # [batch, length, char_length, char_dim]
         char = (input_char != 0).float().unsqueeze(3) * self.char_embedd(input_char)
         char = self.dropout_char(char)
-        # transpose to [batch, length, char_dim, char_length]
-        char = char.transpose(2, 3)
-        # put into cnn [batch, length, char_filters, char_length]
-        # then put into maxpooling [batch, length, char_filters]
-        char, _ = self.conv1d(char).max(dim=3)
-        #
-        char = torch.sigmoid(char)
+        char_size = char.size()
+        # first transform to [batch * length, char_length, char_dim]
+        # then transpose to [batch * length, char_dim, char_length]
+        char = char.view(-1, char_size[2], char_size[3]).transpose(1, 2)
+        # put into cnn [batch * length, char_filters, char_length]
+        # then put into maxpooling [batch * length, char_filters]
+        char = self.conv1d(char).max(dim=2)[0]
+        # reshape to [batch, length, char_filters]
+        char = torch.sigmoid(char).view(char_size[0], char_size[1], -1)
 
         # concatenate word and char [batch, length, word_dim+char_filter]
         input = torch.cat((word, char), dim=2)
@@ -116,16 +116,14 @@ class BiRecurrentConvCRF4NestedNER(nn.Module):
 
         loss = []
 
-        for label in range(len(self.all_crfs)):
-            target_batch = output.new_empty((batch, length)).long()
-            for i in range(batch):
-                target_batch[i, :] = target[label][i].label
+        for label, crf in enumerate(self.all_crfs):
+            target_batch = torch.cat(tuple([target_each.label.unsqueeze(0) for target_each in target[label]]), dim=0)
 
-            loss_batch, energy_batch = self.all_crfs[label].loss(output, target_batch, mask=mask)
+            loss_batch, energy_batch = crf.loss(output, target_batch, mask=mask)
 
-            calc_nests_loss = self.all_crfs[label].nests_loss
+            calc_nests_loss = crf.nests_loss
 
-            def forward_recursively(loss: Tensor, energy: Tensor, target: NestedSequenceLabel, offset: int):
+            def forward_recursively(loss: Tensor, energy: Tensor, target: NestedSequenceLabel, offset: int) -> Tensor:
                 nests_loss_list = []
                 for child in target.children:
                     if child.end - child.start > 1:
@@ -155,15 +153,15 @@ class BiRecurrentConvCRF4NestedNER(nn.Module):
 
         preds = []
 
-        for label in range(len(self.all_crfs)):
-            preds_batch, energy_batch = self.all_crfs[label].decode(output, mask=mask)
+        for crf in self.all_crfs:
+            preds_batch, energy_batch = crf.decode(output, mask=mask)
 
             b_id = self.b_id
             i_id = self.i_id
             e_id = self.e_id
             o_id = self.o_id
             eos_id = self.eos_id
-            decode_nest = self.all_crfs[label].decode_nest
+            decode_nest = crf.decode_nest
 
             def predict_recursively(preds: Tensor, energy: Tensor, offset: int) -> NestedSequenceLabel:
                 length = preds.size(0)

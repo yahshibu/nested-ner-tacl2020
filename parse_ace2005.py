@@ -62,7 +62,7 @@ class Tokenizer:
 
     def __init__(self) -> None:
         os.environ['CORENLP_HOME'] = '{}/stanford-corenlp-full-2018-10-05'.format(os.environ['HOME'])
-        self.client = CoreNLPClient()
+        self.client: CoreNLPClient = CoreNLPClient()
         self.client.ensure_alive()
 
     def __del__(self) -> None:

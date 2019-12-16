@@ -22,17 +22,16 @@ class Config:
 
         # embed size
         self.token_embed: Optional[int] = None
-        self.char_embed: int = 25
+        self.char_embed: int = 128
         self.word_dropout: float = 0.05
         self.char_dropout: float = 0.00
 
         # for cnn
-        self.num_filters: int = 50
+        self.num_filters: int = 256
         self.kernel_size: int = 3
-        self.cnn_dropout: float = 0.20
 
         # for lstm
-        self.hidden_size: int = 200
+        self.hidden_size: int = 256
         self.layers: int = 2
         self.lstm_dropout: float = 0.20
 
